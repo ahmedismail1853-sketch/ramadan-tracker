@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="40" fill="#0b1220"/>
+  <circle cx="96" cy="96" r="54" fill="none" stroke="#35d0ba" stroke-width="10"/>
+  <path d="M118 62c-18 4-32 20-32 40s14 36 32 40c-28 6-54-14-54-40s26-46 54-40z" fill="#35d0ba"/>
+  <text x="96" y="150" font-size="22" text-anchor="middle" fill="#eaf0ff" font-family="Tahoma, Arial">رمضان</text>
+</svg>
