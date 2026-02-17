@@ -67,7 +67,6 @@
     .dangerText{color:#ffd1da}
   </style>
 
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 
@@ -87,7 +86,6 @@
     </header>
 
     <div class="row">
-      <!-- LEFT -->
       <section class="card">
         <div class="split">
           <h2>📊 Dashboard</h2>
@@ -105,17 +103,17 @@
           </div>
           <div class="kpi">
             <div class="v" id="kpiAvg7">—</div>
-            <div class="l">متوسط 7 أيام</div>
+            <div class="l">متوسط 7 أيام (محفوظة)</div>
           </div>
           <div class="kpi">
             <div class="v" id="kpiLogged">—</div>
-            <div class="l">أيام مسجلة</div>
+            <div class="l">أيام محفوظة</div>
           </div>
         </div>
 
         <div style="margin-top:12px">
           <div class="split">
-            <div class="sectionTitle">📈 التقدم اليومي</div>
+            <div class="sectionTitle">📈 التقدم اليومي (محفوظ فقط)</div>
             <div class="mini">اضغط يوم من التقويم لعرضه وتعديله</div>
           </div>
           <canvas id="lineChart" height="110"></canvas>
@@ -125,7 +123,7 @@
 
         <div class="split">
           <h2 style="margin:0">📅 تقويم رمضان</h2>
-          <div class="mini">الأيام الخضراء = متسجلة</div>
+          <div class="mini">الأيام الخضراء = محفوظة فقط</div>
         </div>
 
         <div class="daysHead" aria-hidden="true">
@@ -148,7 +146,6 @@
         <div class="goals" id="goalsList"></div>
       </section>
 
-      <!-- RIGHT -->
       <aside class="card">
         <div class="split">
           <h2>📝 صفحة اليوم</h2>
@@ -156,7 +153,6 @@
         </div>
 
         <div class="tabs" id="tabs"></div>
-
         <div id="tabContent" style="margin-top:10px"></div>
 
         <div class="actions">
@@ -165,19 +161,19 @@
         </div>
 
         <p class="hint" style="margin-top:10px">
-          ✅ السنن تُحسب بضعف الفرائض داخل قسم الصلوات. <br>
-          ✅ الدعاء: يوم الجمعة يظهر “Bonus بعد العصر” تلقائيًا. <br>
+          ✅ أي تغيير على checkbox/كتابة سيُحدّث السكور والشارتس فورًا (Live). <br>
+          ✅ اليوم لا يصبح “محفوظًا” إلا عند الضغط على <b>حفظ اليوم</b>. <br>
+          ✅ الجمعة: يظهر “Bonus بعد العصر” تلقائيًا ضمن الدعاء. <br>
           ✅ المهني: كل مهمة ✔ = نقطة (حد أقصى 10).
         </p>
 
         <hr style="border:none;border-top:1px solid rgba(29,42,74,.75);margin:14px 0"/>
 
-        <h2 style="margin:0 0 8px">🍩 توزيع الجوانب (اليوم)</h2>
+        <h2 style="margin:0 0 8px">🍩 توزيع الجوانب (Live)</h2>
         <canvas id="donutChart" height="140"></canvas>
       </aside>
     </div>
 
-    <!-- SETTINGS MODAL (simple) -->
     <div id="settingsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);padding:18px;z-index:999">
       <div class="card" style="max-width:720px;margin:0 auto">
         <div class="split">
@@ -218,12 +214,9 @@
 
   const defaultState = () => ({
     version: 1,
-    settings: {
-      startDate: "2026-02-18", // user specified: 18 Feb (Wed)
-      daysCount: 30
-    },
+    settings: { startDate: "2026-02-18", daysCount: 30 },
     goals: [],
-    days: {} // by iso date -> dayData
+    days: {} // SAVED ONLY
   });
 
   const load = () => {
@@ -246,7 +239,7 @@
   const save = (s) => localStorage.setItem(KEY, JSON.stringify(s));
 
   // --------------------
-  // Helpers (date)
+  // Helpers
   // --------------------
   const isoToday = () => {
     const d = new Date();
@@ -271,6 +264,9 @@
   };
 
   const dayOfWeek = (iso) => new Date(iso).getDay(); // 0 Sun .. 6 Sat
+  const isFriday = (iso) => dayOfWeek(iso) === 5;
+
+  const clamp = (n,a,b) => Math.min(b, Math.max(a, n));
 
   // --------------------
   // UI
@@ -317,20 +313,12 @@
   let activeTab = "روحاني";
 
   // --------------------
-  // Scoring system (100)
+  // Scoring (100)
   // --------------------
   const WEIGHTS = {
-    روحاني: 45,
-    صحي: 15,
-    شخصي: 10,
-    عائلي: 8,
-    اجتماعي: 7,
-    مهني: 10,
-    مادي: 5
+    روحاني: 45, صحي: 15, شخصي: 10, عائلي: 8, اجتماعي: 7, مهني: 10, مادي: 5
   };
 
-  // Prayers raw points:
-  // Fard rak'ah = 1, Sunnah rak'ah = 2 (as requested).
   const PRAYERS = [
     { key:"sun_fajr2", label:"ركعتي الفجر (سنة)", type:"sun", rakah:2 },
     { key:"fard_fajr", label:"الفجر (فرض)", type:"fard", rakah:2 },
@@ -349,8 +337,7 @@
     { key:"sun_after_isha2", label:"٢ بعد العشاء (سنة)", type:"sun", rakah:2 },
 
     { key:"taraweeh8", label:"التراويح (٨ ركعات)", type:"sun", rakah:8 },
-    { key:"witr", label:"الوتر", type:"fardlike", rakah:3 }, // treat as 1 each
-    // qiyam is numeric input (rakah count) sunnah weight
+    { key:"witr", label:"الوتر (٣ ركعات)", type:"fardlike", rakah:3 },
   ];
 
   const thikrItems = [
@@ -360,7 +347,6 @@
     {key:"thikr_hawqala", label:"ورد الحوقلة", points:1.5},
   ];
 
-  // Du'a times (base) + Friday bonus
   const duaBase = [
     {key:"dua_before_fajr", label:"قبل الفجر", points:1},
     {key:"dua_between_adhan_iqama", label:"بين الأذان والإقامة", points:1},
@@ -369,10 +355,8 @@
     {key:"dua_last_third", label:"الثلث الأخير من الليل", points:1},
     {key:"dua_sujud", label:"في السجود", points:1},
   ];
-
   const fridayBonus = {key:"dua_friday_asr", label:"الجمعة: بعد العصر حتى المغرب (Bonus)", points:2};
 
-  // Health
   const healthItems = [
     {key:"health_teeth", label:"تفريش الأسنان", points:2},
     {key:"health_food", label:"أكل صحي", points:3},
@@ -382,92 +366,89 @@
     {key:"health_look", label:"الاعتناء بالمظهر", points:2},
   ];
 
-  // Personal
   const personalItems = [
     {key:"pers_read", label:"قراءة", points:4},
     {key:"pers_listen", label:"سماع", points:3},
     {key:"pers_fun", label:"ترويح", points:3},
   ];
 
-  // Family
   const familyItems = [
     {key:"fam_parents", label:"بر الوالدين", points:5},
     {key:"fam_help", label:"مساعدة في البيت", points:3},
   ];
 
-  // Social
   const socialItems = [
     {key:"soc_taarafu", label:"لتعارفوا", points:7},
   ];
 
-  // Money
   const moneyItems = [
     {key:"money_sadaqa", label:"الصدقة", points:3},
     {key:"money_earn", label:"الكسب / إنتاج", points:2},
   ];
 
-  // Professional: dynamic tasks, 1 pt each, cap 10
   const profCategories = [
-    "المذاكرة",
-    "KIT Project",
-    "English learning",
-    "قناة تراث",
-    "تطوير مهارة",
-    "Other"
+    "المذاكرة","KIT Project","English learning","قناة تراث","تطوير مهارة","Other"
   ];
 
-  const clamp = (n,a,b) => Math.min(b, Math.max(a, n));
+  // --------------------
+  // Draft system (days are not saved until user clicks save)
+  // --------------------
+  const drafts = {}; // drafts[iso] = dayData
 
-  const ensureDay = (iso) => {
-    const d = state.days[iso];
-    if (d) return d;
+  const makeEmptyDay = () => ({
+    prayers: Object.fromEntries(PRAYERS.map(p => [p.key, false])),
+    qiyamRakah: 0,
+    thikr: Object.fromEntries(thikrItems.map(x => [x.key, false])),
+    dua: Object.fromEntries([...duaBase, fridayBonus].map(x => [x.key, false])),
+    duaFocus: "",
 
-    state.days[iso] = {
-      // روحاني
-      prayers: Object.fromEntries(PRAYERS.map(p => [p.key, false])),
-      qiyamRakah: 0,
-      thikr: Object.fromEntries(thikrItems.map(x => [x.key, false])),
-      dua: Object.fromEntries([...duaBase, fridayBonus].map(x => [x.key, false])),
-      duaFocus: "",
+    health: Object.fromEntries(healthItems.map(x => [x.key, false])),
+    personal: Object.fromEntries(personalItems.map(x => [x.key, false])),
+    family: Object.fromEntries(familyItems.map(x => [x.key, false])),
+    social: Object.fromEntries(socialItems.map(x => [x.key, false])),
+    money: Object.fromEntries(moneyItems.map(x => [x.key, false])),
 
-      // other sections
-      health: Object.fromEntries(healthItems.map(x => [x.key, false])),
-      personal: Object.fromEntries(personalItems.map(x => [x.key, false])),
-      family: Object.fromEntries(familyItems.map(x => [x.key, false])),
-      social: Object.fromEntries(socialItems.map(x => [x.key, false])),
-      money: Object.fromEntries(moneyItems.map(x => [x.key, false])),
+    professional: Object.fromEntries(profCategories.map(c => [c, [{text:"", done:false}]])),
+    notes: ""
+  });
 
-      // professional tasks: {category: [{text, done}]}
-      professional: Object.fromEntries(profCategories.map(c => [c, [{text:"", done:false}]])),
-
-      notes: ""
-    };
-    return state.days[iso];
+  const getDay = (iso) => {
+    if (drafts[iso]) return drafts[iso];
+    if (state.days[iso]) return state.days[iso];
+    drafts[iso] = makeEmptyDay();
+    return drafts[iso];
   };
 
-  // Compute raw spiritual subscore then normalize to 45
+  const saveDay = (iso) => {
+    state.days[iso] = getDay(iso);
+    delete drafts[iso];
+    save(state);
+  };
+
+  const deleteDay = (iso) => {
+    if (state.days[iso]) delete state.days[iso];
+    if (drafts[iso]) delete drafts[iso];
+    save(state);
+  };
+
+  // --------------------
+  // Scoring calc
+  // --------------------
   const calcPrayersRaw = (day) => {
     let raw = 0;
     for (const p of PRAYERS) {
-      const checked = !!day.prayers[p.key];
-      if (!checked) continue;
-
+      if (!day.prayers[p.key]) continue;
       if (p.type === "fard") raw += p.rakah * 1;
       else if (p.type === "sun") raw += p.rakah * 2;
-      else raw += p.rakah * 1; // witr treated like 1 each
+      else raw += p.rakah * 1;
     }
     const qiyam = clamp(+day.qiyamRakah || 0, 0, 60);
-    raw += qiyam * 2; // qiyam sunnah
+    raw += qiyam * 2;
     return raw;
   };
 
   const calcThikr = (day) =>
     thikrItems.reduce((acc,x)=> acc + (day.thikr[x.key] ? x.points : 0), 0);
-
-  const isFriday = (iso) => {
-    // JS: 5 is Friday? Actually: 0 Sun, 1 Mon, 2 Tue, 3 Wed, 4 Thu, 5 Fri, 6 Sat
-    return dayOfWeek(iso) === 5;
-  };
 
   const calcDua = (day, iso) => {
     const items = [...duaBase, ...(isFriday(iso) ? [fridayBonus] : [])];
@@ -475,20 +456,15 @@
   };
 
   const calcSpiritual = (day, iso) => {
-    // We want total spiritual out of 45 with sub-allocations:
-    // Prayers: 30 (normalized), Thikr: 7, Dua: 8  => 45
     const prayersRaw = calcPrayersRaw(day);
 
-    // define maxRaw for normalization: assume doing all listed prayers (except qiyam) gives baseline maxRaw
-    // and allow qiyam to help reach cap but not exceed.
     const baselineMaxRaw =
       PRAYERS.reduce((acc,p)=>{
         const mult = (p.type === "sun") ? 2 : 1;
         return acc + p.rakah * mult;
-      }, 0) + (10 * 2); // allow qiyam up to 10 rakah to hit full cap comfortably
+      }, 0) + (10 * 2);
 
     const prayersNorm = clamp((prayersRaw / baselineMaxRaw) * 30, 0, 30);
-
     const thikr = clamp(calcThikr(day), 0, 7);
     const dua = clamp(calcDua(day, iso), 0, 8);
 
@@ -506,18 +482,25 @@
   };
 
   const calcProfessional = (day) => {
-    // 1 point per done task, cap 10
     let done = 0;
     for (const cat of profCategories) {
       const tasks = day.professional[cat] || [];
       for (const t of tasks) if (t && t.done && t.text && t.text.trim()) done++;
     }
-    done = clamp(done, 0, 10);
-    return done;
+    return clamp(done, 0, 10);
   };
 
-  const calcAll = (iso) => {
-    const day = ensureDay(iso);
+  // calcAll: if source="saved" => saved only, else uses draft if exists
+  const calcAll = (iso, source="auto") => {
+    const day = (source === "saved") ? (state.days[iso] || null) : getDay(iso);
+
+    if (!day) {
+      return {
+        breakdown: {"روحاني":0,"صحي":0,"شخصي":0,"عائلي":0,"اجتماعي":0,"مهني":0,"مادي":0},
+        spiritualParts: {prayers:0,thikr:0,dua:0,total:0},
+        total: 0
+      };
+    }
 
     const spiritual = calcSpiritual(day, iso);
     const health = clamp(sumCheckItems(day.health, healthItems), 0, WEIGHTS.صحي);
@@ -525,7 +508,6 @@
     const family = clamp(sumCheckItems(day.family, familyItems), 0, WEIGHTS.عائلي);
     const social = clamp(sumCheckItems(day.social, socialItems), 0, WEIGHTS.اجتماعي);
     const money = clamp(sumCheckItems(day.money, moneyItems), 0, WEIGHTS.مادي);
-
     const professional = clamp(calcProfessional(day), 0, WEIGHTS.مهني);
 
     const total = Math.round((spiritual.total + health + personal + family + social + professional + money) * 10) / 10;
@@ -545,32 +527,8 @@
     };
   };
 
-  // Streak: consecutive days with total >= 70 (tunable)
-  const streakThreshold = 70;
-  const calcStreak = () => {
-    let streak = 0;
-    let cur = isoToday();
-    while (true) {
-      const has = state.days[cur];
-      if (!has) break;
-      const t = calcAll(cur).total;
-      if (t < streakThreshold) break;
-      streak++;
-      cur = isoAddDays(cur, -1);
-    }
-    return streak;
-  };
-
-  const avgLastN = (n=7) => {
-    const dates = Object.keys(state.days).sort();
-    const last = dates.slice(-n);
-    if (!last.length) return null;
-    const sum = last.reduce((acc,iso)=> acc + calcAll(iso).total, 0);
-    return Math.round((sum/last.length)*10)/10;
-  };
-
   // --------------------
-  // Ramadan calendar generation
+  // Ramadan dates
   // --------------------
   const getRamadanDates = () => {
     const start = state.settings.startDate;
@@ -584,7 +542,32 @@
   };
 
   // --------------------
-  // Tabs + Render
+  // Streak (saved only)
+  // --------------------
+  const streakThreshold = 70;
+  const calcStreak = () => {
+    let streak = 0;
+    let cur = isoToday();
+    while (true) {
+      if (!state.days[cur]) break;
+      const t = calcAll(cur, "saved").total;
+      if (t < streakThreshold) break;
+      streak++;
+      cur = isoAddDays(cur, -1);
+    }
+    return streak;
+  };
+
+  const avgLastN = (n=7) => {
+    const dates = Object.keys(state.days).sort();
+    const last = dates.slice(-n);
+    if (!last.length) return null;
+    const sum = last.reduce((acc,iso)=> acc + calcAll(iso, "saved").total, 0);
+    return Math.round((sum/last.length)*10)/10;
+  };
+
+  // --------------------
+  // Tabs
   // --------------------
   const TAB_KEYS = ["روحاني","صحي","شخصي","عائلي","اجتماعي","مهني","مادي","ملاحظات"];
 
@@ -603,229 +586,61 @@
     }
   };
 
-  const mkCheck = (label, checked, onChange) => {
-    const line = document.createElement("div");
-    line.className = "checkline";
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = !!checked;
-    cb.addEventListener("change", ()=> onChange(cb.checked));
-    const txt = document.createElement("div");
-    txt.textContent = label;
-    txt.style.flex = "1";
-    line.appendChild(cb);
-    line.appendChild(txt);
-    return line;
-  };
+  // --------------------
+  // Charts
+  // --------------------
+  let lineChart, donutChart;
 
-  const renderTabContent = () => {
-    const day = ensureDay(selectedIso);
-    ui.selectedDayPill.textContent = fmtAr(selectedIso);
+  const renderCharts = () => {
+    const ramadanDates = getRamadanDates();
 
-    const wrap = document.createElement("div");
+    const labels = ramadanDates.map((iso, idx)=> `ي${idx+1}`);
+    const dataSaved = ramadanDates.map(iso => state.days[iso] ? calcAll(iso, "saved").total : null);
 
-    if (activeTab === "روحاني") {
-      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"🕌 الصلوات"}));
-
-      // prayers list
-      for (const p of PRAYERS) {
-        const label = p.label;
-        wrap.appendChild(mkCheck(label, day.prayers[p.key], (v)=>{ day.prayers[p.key]=v; }));
+    const ctx1 = document.getElementById("lineChart").getContext("2d");
+    if (lineChart) lineChart.destroy();
+    lineChart = new Chart(ctx1, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "النقاط / 100",
+          data: dataSaved,
+          spanGaps: false,
+          tension: 0.25,
+          borderWidth: 2,
+          pointRadius: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { suggestedMin: 0, suggestedMax: 100 } }
       }
+    });
 
-      // qiyam numeric
-      const q = document.createElement("div");
-      q.className = "checkline";
-      q.style.display = "grid";
-      q.style.gridTemplateColumns = "1fr 160px";
-      q.style.gap = "10px";
-      q.style.alignItems = "center";
-      q.innerHTML = `<div>قيام الليل (اكتب عدد الركعات)</div>`;
-      const inp = document.createElement("input");
-      inp.type = "number";
-      inp.min = "0";
-      inp.max = "60";
-      inp.value = day.qiyamRakah || 0;
-      inp.addEventListener("input", ()=> day.qiyamRakah = clamp(+inp.value||0,0,60));
-      q.appendChild(inp);
-      wrap.appendChild(q);
+    const sc = calcAll(selectedIso); // ✅ live (draft)
+    const keys = Object.keys(sc.breakdown);
+    const vals = keys.map(k => sc.breakdown[k]);
 
-      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"📿 الأذكار"}));
-      for (const x of thikrItems) {
-        wrap.appendChild(mkCheck(x.label, day.thikr[x.key], (v)=>{ day.thikr[x.key]=v; }));
-      }
-
-      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"🤲 الدعاء"}));
-      const duaItemsToday = [...duaBase, ...(isFriday(selectedIso) ? [fridayBonus] : [])];
-      for (const x of duaItemsToday) {
-        wrap.appendChild(mkCheck(x.label, day.dua[x.key], (v)=>{ day.dua[x.key]=v; }));
-      }
-
-      const focus = document.createElement("label");
-      focus.textContent = "الدعوات اللي هتركز عليها اليوم";
-      const ta = document.createElement("textarea");
-      ta.value = day.duaFocus || "";
-      ta.placeholder = "اكتب الأدعية الأساسية…";
-      ta.addEventListener("input", ()=> day.duaFocus = ta.value);
-      focus.appendChild(ta);
-      wrap.appendChild(focus);
-
-      const sc = calcAll(selectedIso);
-      const hint = document.createElement("div");
-      hint.className = "mini";
-      hint.style.marginTop = "8px";
-      hint.textContent = `روحاني اليوم: ${sc.breakdown["روحاني"]}/45 (صلوات ${sc.spiritualParts.prayers}/30 + أذكار ${sc.spiritualParts.thikr}/7 + دعاء ${sc.spiritualParts.dua}/8)`;
-      wrap.appendChild(hint);
-    }
-
-    if (activeTab === "صحي") {
-      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"💪 الجانب الصحي"}));
-      for (const x of healthItems) {
-        wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.health[x.key], (v)=>{ day.health[x.key]=v; }));
-      }
-      wrap.appendChild(Object.assign(document.createElement("div"), {className:"mini", textContent:`حد أقصى: ${WEIGHTS.صحي} نقطة`}));      
-    }
-
-    if (activeTab === "شخصي") {
-      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"🧠 الجانب الشخصي"}));
-      for (const x of personalItems) {
-        wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.personal[x.key], (v)=>{ day.personal[x.key]=v; }));
-      }
-      wrap.appendChild(Object.assign(document.createElement("div"), {className:"mini", textContent:`حد أقصى: ${WEIGHTS.شخصي} نقطة`}));      
-    }
-
-    if (activeTab === "عائلي") {
-      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"👨‍👩‍👦 الجانب العائلي"}));
-      for (const x of familyItems) {
-        wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.family[x.key], (v)=>{ day.family[x.key]=v; }));
-      }
-      wrap.appendChild(Object.assign(document.createElement("div"), {className:"mini", textContent:`حد أقصى: ${WEIGHTS.عائلي} نقطة`}));      
-    }
-
-    if (activeTab === "اجتماعي") {
-      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"🌍 الجانب الاجتماعي"}));
-      for (const x of socialItems) {
-        wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.social[x.key], (v)=>{ day.social[x.key]=v; }));
-      }
-      wrap.appendChild(Object.assign(document.createElement("div"), {className:"mini", textContent:`حد أقصى: ${WEIGHTS.اجتماعي} نقطة`}));      
-    }
-
-    if (activeTab === "مهني") {
-      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"💼 الجانب المهني"}));
-      const info = document.createElement("div");
-      info.className = "mini";
-      info.textContent = "كل مهمة ✔ = 1 نقطة (حد أقصى 10). اكتب مهامك تحت كل بند.";
-      wrap.appendChild(info);
-
-      for (const cat of profCategories) {
-        const title = document.createElement("div");
-        title.className = "sectionTitle";
-        title.textContent = "• " + cat;
-        wrap.appendChild(title);
-
-        const tasks = day.professional[cat] || [{text:"", done:false}];
-
-        tasks.forEach((t, idx) => {
-          const line = document.createElement("div");
-          line.className = "checkline";
-          line.style.display = "grid";
-          line.style.gridTemplateColumns = "28px 1fr 80px";
-          line.style.gap = "10px";
-          line.style.alignItems = "center";
-
-          const cb = document.createElement("input");
-          cb.type = "checkbox";
-          cb.checked = !!t.done;
-          cb.addEventListener("change", ()=> { t.done = cb.checked; });
-
-          const inp = document.createElement("input");
-          inp.placeholder = "اكتب المهمة…";
-          inp.value = t.text || "";
-          inp.addEventListener("input", ()=> { t.text = inp.value; });
-
-          const del = document.createElement("button");
-          del.className = "btn danger";
-          del.textContent = "حذف";
-          del.addEventListener("click", ()=>{
-            const arr = day.professional[cat] || [];
-            arr.splice(idx,1);
-            if (arr.length === 0) arr.push({text:"", done:false});
-            day.professional[cat] = arr;
-            renderTabContent();
-          });
-
-          line.appendChild(cb);
-          line.appendChild(inp);
-          line.appendChild(del);
-          wrap.appendChild(line);
-        });
-
-        const add = document.createElement("button");
-        add.className = "btn ghost";
-        add.textContent = "➕ إضافة مهمة";
-        add.addEventListener("click", ()=>{
-          day.professional[cat] = (day.professional[cat] || []);
-          day.professional[cat].push({text:"", done:false});
-          renderTabContent();
-        });
-        wrap.appendChild(add);
-      }
-
-      const sc = calcAll(selectedIso);
-      const hint = document.createElement("div");
-      hint.className = "mini";
-      hint.style.marginTop = "8px";
-      hint.textContent = `مهني اليوم: ${sc.breakdown["مهني"]}/10`;
-      wrap.appendChild(hint);
-    }
-
-    if (activeTab === "مادي") {
-      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"💰 الجانب المادي"}));
-      for (const x of moneyItems) {
-        wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.money[x.key], (v)=>{ day.money[x.key]=v; }));
-      }
-      wrap.appendChild(Object.assign(document.createElement("div"), {className:"mini", textContent:`حد أقصى: ${WEIGHTS.مادي} نقطة`}));      
-    }
-
-    if (activeTab === "ملاحظات") {
-      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"🗒️ ملاحظات اليوم"}));
-      const note = document.createElement("textarea");
-      note.value = day.notes || "";
-      note.placeholder = "اكتب إنجازاتك/تعليقك/مراجعة سريعة لليوم…";
-      note.addEventListener("input", ()=> day.notes = note.value);
-      wrap.appendChild(note);
-
-      const sc = calcAll(selectedIso);
-      const box = document.createElement("div");
-      box.className = "mini";
-      box.style.marginTop = "10px";
-      box.textContent =
-        `Total: ${sc.total}/100 — روحاني ${sc.breakdown["روحاني"]}/45 • صحي ${sc.breakdown["صحي"]}/15 • شخصي ${sc.breakdown["شخصي"]}/10 • عائلي ${sc.breakdown["عائلي"]}/8 • اجتماعي ${sc.breakdown["اجتماعي"]}/7 • مهني ${sc.breakdown["مهني"]}/10 • مادي ${sc.breakdown["مادي"]}/5`;
-      wrap.appendChild(box);
-    }
-
-    ui.tabContent.innerHTML = "";
-    ui.tabContent.appendChild(wrap);
+    const ctx2 = document.getElementById("donutChart").getContext("2d");
+    if (donutChart) donutChart.destroy();
+    donutChart = new Chart(ctx2, {
+      type: "doughnut",
+      data: { labels: keys, datasets: [{ data: vals, borderWidth: 1 }] },
+      options: { plugins: { legend: { position: "bottom" } } }
+    });
   };
 
   // --------------------
-  // Calendar render
+  // Calendar
   // --------------------
   const renderCalendar = () => {
     ui.calendar.innerHTML = "";
     const ramadanDates = getRamadanDates();
 
-    // pad grid to start on Saturday? We'll pad by weekday to align (Sun..Sat)
-    // Our header is: Sat Sun Mon Tue Wed Thu Fri visually RTL; We'll just render simple 30 cards without padding for now
-    // But we will render in a consistent 7-column grid with padding based on weekday.
-    const startDow = dayOfWeek(ramadanDates[0]); // 0 Sun
-    // We want columns: Sat(6), Sun(0), Mon(1), Tue(2), Wed(3), Thu(4), Fri(5)
-    const colIndex = (dow) => {
-      // Map: Sat=0, Sun=1, Mon=2, Tue=3, Wed=4, Thu=5, Fri=6
-      if (dow === 6) return 0;
-      return dow + 1; // Sun->1 ... Fri->6
-    };
-    const pad = colIndex(startDow);
+    const colIndex = (dow) => { if (dow === 6) return 0; return dow + 1; }; // Sat=0..Fri=6
+    const pad = colIndex(dayOfWeek(ramadanDates[0]));
     for (let i=0;i<pad;i++){
       const empty = document.createElement("div");
       empty.style.opacity = "0";
@@ -835,13 +650,14 @@
     }
 
     ramadanDates.forEach((iso, idx) => {
-      const score = state.days[iso] ? calcAll(iso).total : null;
+      const isSaved = !!state.days[iso];
+      const score = isSaved ? calcAll(iso, "saved").total : null;
 
       const cell = document.createElement("div");
       cell.className = "day";
       if (iso === selectedIso) cell.classList.add("active");
-      if (score != null) cell.classList.add("done");
-      if (score != null && score >= 85) cell.classList.add("best");
+      if (isSaved) cell.classList.add("done");
+      if (isSaved && score >= 85) cell.classList.add("best");
 
       cell.innerHTML = `
         <div class="d">اليوم ${idx+1}</div>
@@ -850,8 +666,7 @@
       `;
       cell.addEventListener("click", ()=>{
         selectedIso = iso;
-        ensureDay(selectedIso);
-        renderAll();
+        renderAll(); // switch day
       });
 
       ui.calendar.appendChild(cell);
@@ -914,104 +729,249 @@
   };
 
   // --------------------
-  // Charts
-  // --------------------
-  let lineChart, donutChart;
-
-  const renderCharts = () => {
-    const ramadanDates = getRamadanDates();
-
-    // Line: daily total (ramadan range)
-    const labels = ramadanDates.map((iso, idx)=> `ي${idx+1}`);
-    const data = ramadanDates.map(iso => state.days[iso] ? calcAll(iso).total : null);
-
-    const ctx1 = document.getElementById("lineChart").getContext("2d");
-    if (lineChart) lineChart.destroy();
-    lineChart = new Chart(ctx1, {
-      type: "line",
-      data: {
-        labels,
-        datasets: [{
-          label: "النقاط / 100",
-          data,
-          spanGaps: true,
-          tension: 0.25,
-          borderWidth: 2,
-          pointRadius: 3
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { display: false },
-          tooltip: { enabled: true }
-        },
-        scales: {
-          y: { suggestedMin: 0, suggestedMax: 100 }
-        }
-      }
-    });
-
-    // Donut: breakdown for selected day
-    const sc = calcAll(selectedIso);
-    const keys = Object.keys(sc.breakdown);
-    const vals = keys.map(k => sc.breakdown[k]);
-
-    const ctx2 = document.getElementById("donutChart").getContext("2d");
-    if (donutChart) donutChart.destroy();
-    donutChart = new Chart(ctx2, {
-      type: "doughnut",
-      data: {
-        labels: keys,
-        datasets: [{
-          data: vals,
-          borderWidth: 1
-        }]
-      },
-      options: {
-        plugins: { legend: { position: "bottom" } }
-      }
-    });
-  };
-
-  // --------------------
   // KPIs
   // --------------------
   const renderKPIs = () => {
-    const totalToday = state.days[selectedIso] ? calcAll(selectedIso).total : 0;
-    ui.kpiTotal.textContent = `${totalToday}`;
+    ui.todayPill.textContent = `اليوم: ${fmtAr(isoToday())}`;
+
+    const ramDates = getRamadanDates();
+    ui.ramadanLabel.textContent = `رمضان: من ${fmtAr(ramDates[0])} إلى ${fmtAr(ramDates[ramDates.length-1])}`;
+
+    // ✅ KPI Total shows live draft for selected day
+    const scLive = calcAll(selectedIso);
+    ui.kpiTotal.textContent = `${scLive.total}`;
 
     ui.kpiStreak.textContent = calcStreak();
     const a7 = avgLastN(7);
     ui.kpiAvg7.textContent = a7 == null ? "—" : a7;
-
     ui.kpiLogged.textContent = Object.keys(state.days).length;
-
-    ui.todayPill.textContent = `اليوم: ${fmtAr(isoToday())}`;
-    const ramDates = getRamadanDates();
-    ui.ramadanLabel.textContent = `رمضان: من ${fmtAr(ramDates[0])} إلى ${fmtAr(ramDates[ramDates.length-1])}`;
   };
 
   // --------------------
-  // Save / Delete Day
+  // Live refresh (✅ updates charts + KPIs instantly without saving)
+  // --------------------
+  const refreshLive = () => {
+    renderKPIs();
+    renderTabContent();
+    renderCharts();
+    renderCalendar(); // keeps active border; does NOT mark saved
+  };
+
+  // --------------------
+  // UI builders
+  // --------------------
+  const mkCheck = (label, checked, onChange) => {
+    const line = document.createElement("div");
+    line.className = "checkline";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = !!checked;
+    cb.addEventListener("change", ()=> { onChange(cb.checked); refreshLive(); });
+    const txt = document.createElement("div");
+    txt.textContent = label;
+    txt.style.flex = "1";
+    line.appendChild(cb);
+    line.appendChild(txt);
+    return line;
+  };
+
+  const renderTabContent = () => {
+    const day = getDay(selectedIso);
+    ui.selectedDayPill.textContent = fmtAr(selectedIso);
+
+    const wrap = document.createElement("div");
+
+    if (activeTab === "روحاني") {
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"🕌 الصلوات"}));
+      for (const p of PRAYERS) {
+        wrap.appendChild(mkCheck(p.label, day.prayers[p.key], (v)=>{ day.prayers[p.key]=v; }));
+      }
+
+      const q = document.createElement("div");
+      q.className = "checkline";
+      q.style.display = "grid";
+      q.style.gridTemplateColumns = "1fr 160px";
+      q.style.gap = "10px";
+      q.style.alignItems = "center";
+      q.innerHTML = `<div>قيام الليل (اكتب عدد الركعات)</div>`;
+      const inp = document.createElement("input");
+      inp.type = "number"; inp.min="0"; inp.max="60";
+      inp.value = day.qiyamRakah || 0;
+      inp.addEventListener("input", ()=> { day.qiyamRakah = clamp(+inp.value||0,0,60); refreshLive(); });
+      q.appendChild(inp);
+      wrap.appendChild(q);
+
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"📿 الأذكار"}));
+      for (const x of thikrItems) {
+        wrap.appendChild(mkCheck(x.label, day.thikr[x.key], (v)=>{ day.thikr[x.key]=v; }));
+      }
+
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"🤲 الدعاء"}));
+      const duaItemsToday = [...duaBase, ...(isFriday(selectedIso) ? [fridayBonus] : [])];
+      for (const x of duaItemsToday) {
+        wrap.appendChild(mkCheck(x.label, day.dua[x.key], (v)=>{ day.dua[x.key]=v; }));
+      }
+
+      const focus = document.createElement("label");
+      focus.textContent = "الدعوات اللي هتركز عليها اليوم";
+      const ta = document.createElement("textarea");
+      ta.value = day.duaFocus || "";
+      ta.placeholder = "اكتب الأدعية الأساسية…";
+      ta.addEventListener("input", ()=> { day.duaFocus = ta.value; refreshLive(); });
+      focus.appendChild(ta);
+      wrap.appendChild(focus);
+
+      const sc = calcAll(selectedIso);
+      const hint = document.createElement("div");
+      hint.className = "mini";
+      hint.style.marginTop = "8px";
+      hint.textContent = `روحاني اليوم: ${sc.breakdown["روحاني"]}/45 (صلوات ${sc.spiritualParts.prayers}/30 + أذكار ${sc.spiritualParts.thikr}/7 + دعاء ${sc.spiritualParts.dua}/8)`;
+      wrap.appendChild(hint);
+    }
+
+    if (activeTab === "صحي") {
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"💪 الجانب الصحي"}));
+      for (const x of healthItems) {
+        wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.health[x.key], (v)=>{ day.health[x.key]=v; }));
+      }
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"mini", textContent:`حد أقصى: ${WEIGHTS.صحي} نقطة`}));
+    }
+
+    if (activeTab === "شخصي") {
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"🧠 الجانب الشخصي"}));
+      for (const x of personalItems) {
+        wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.personal[x.key], (v)=>{ day.personal[x.key]=v; }));
+      }
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"mini", textContent:`حد أقصى: ${WEIGHTS.شخصي} نقطة`}));
+    }
+
+    if (activeTab === "عائلي") {
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"👨‍👩‍👦 الجانب العائلي"}));
+      for (const x of familyItems) {
+        wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.family[x.key], (v)=>{ day.family[x.key]=v; }));
+      }
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"mini", textContent:`حد أقصى: ${WEIGHTS.عائلي} نقطة`}));
+    }
+
+    if (activeTab === "اجتماعي") {
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"🌍 الجانب الاجتماعي"}));
+      for (const x of socialItems) {
+        wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.social[x.key], (v)=>{ day.social[x.key]=v; }));
+      }
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"mini", textContent:`حد أقصى: ${WEIGHTS.اجتماعي} نقطة`}));
+    }
+
+    if (activeTab === "مهني") {
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"💼 الجانب المهني"}));
+      const info = document.createElement("div");
+      info.className = "mini";
+      info.textContent = "كل مهمة ✔ = 1 نقطة (حد أقصى 10). اكتب مهامك تحت كل بند.";
+      wrap.appendChild(info);
+
+      for (const cat of profCategories) {
+        const title = document.createElement("div");
+        title.className = "sectionTitle";
+        title.textContent = "• " + cat;
+        wrap.appendChild(title);
+
+        const tasks = day.professional[cat] || [{text:"", done:false}];
+
+        tasks.forEach((t, idx) => {
+          const line = document.createElement("div");
+          line.className = "checkline";
+          line.style.display = "grid";
+          line.style.gridTemplateColumns = "28px 1fr 80px";
+          line.style.gap = "10px";
+          line.style.alignItems = "center";
+
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.checked = !!t.done;
+          cb.addEventListener("change", ()=> { t.done = cb.checked; refreshLive(); });
+
+          const inp = document.createElement("input");
+          inp.placeholder = "اكتب المهمة…";
+          inp.value = t.text || "";
+          inp.addEventListener("input", ()=> { t.text = inp.value; refreshLive(); });
+
+          const del = document.createElement("button");
+          del.className = "btn danger";
+          del.textContent = "حذف";
+          del.addEventListener("click", ()=>{
+            const arr = day.professional[cat] || [];
+            arr.splice(idx,1);
+            if (arr.length === 0) arr.push({text:"", done:false});
+            day.professional[cat] = arr;
+            refreshLive();
+          });
+
+          line.appendChild(cb);
+          line.appendChild(inp);
+          line.appendChild(del);
+          wrap.appendChild(line);
+        });
+
+        const add = document.createElement("button");
+        add.className = "btn ghost";
+        add.textContent = "➕ إضافة مهمة";
+        add.addEventListener("click", ()=>{
+          day.professional[cat] = (day.professional[cat] || []);
+          day.professional[cat].push({text:"", done:false});
+          refreshLive();
+        });
+        wrap.appendChild(add);
+      }
+
+      const sc = calcAll(selectedIso);
+      const hint = document.createElement("div");
+      hint.className = "mini";
+      hint.style.marginTop = "8px";
+      hint.textContent = `مهني اليوم (Live): ${sc.breakdown["مهني"]}/10`;
+      wrap.appendChild(hint);
+    }
+
+    if (activeTab === "مادي") {
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"💰 الجانب المادي"}));
+      for (const x of moneyItems) {
+        wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.money[x.key], (v)=>{ day.money[x.key]=v; }));
+      }
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"mini", textContent:`حد أقصى: ${WEIGHTS.مادي} نقطة`}));
+    }
+
+    if (activeTab === "ملاحظات") {
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"🗒️ ملاحظات اليوم"}));
+      const note = document.createElement("textarea");
+      note.value = day.notes || "";
+      note.placeholder = "اكتب إنجازاتك/تعليقك/مراجعة سريعة لليوم…";
+      note.addEventListener("input", ()=> { day.notes = note.value; refreshLive(); });
+      wrap.appendChild(note);
+
+      const sc = calcAll(selectedIso);
+      const box = document.createElement("div");
+      box.className = "mini";
+      box.style.marginTop = "10px";
+      box.textContent =
+        `Total (Live): ${sc.total}/100 — روحاني ${sc.breakdown["روحاني"]}/45 • صحي ${sc.breakdown["صحي"]}/15 • شخصي ${sc.breakdown["شخصي"]}/10 • عائلي ${sc.breakdown["عائلي"]}/8 • اجتماعي ${sc.breakdown["اجتماعي"]}/7 • مهني ${sc.breakdown["مهني"]}/10 • مادي ${sc.breakdown["مادي"]}/5`;
+      wrap.appendChild(box);
+    }
+
+    ui.tabContent.innerHTML = "";
+    ui.tabContent.appendChild(wrap);
+  };
+
+  // --------------------
+  // Actions
   // --------------------
   ui.saveDayBtn.addEventListener("click", ()=>{
-    ensureDay(selectedIso);
-    save(state);
+    saveDay(selectedIso);
     renderAll();
   });
 
   ui.deleteDayBtn.addEventListener("click", ()=>{
-    if (state.days[selectedIso]) {
-      delete state.days[selectedIso];
-      save(state);
-      ensureDay(selectedIso); // recreate empty for UI
-      delete state.days[selectedIso]; // keep it truly deleted unless saved
-      renderAll();
-    }
+    deleteDay(selectedIso);
+    renderAll();
   });
 
-  // Goals add
   ui.addGoalBtn.addEventListener("click", ()=>{
     const txt = (ui.goalInput.value || "").trim();
     if (!txt) return;
@@ -1021,7 +981,6 @@
     renderAll();
   });
 
-  // Export / Import
   ui.exportBtn.addEventListener("click", ()=>{
     const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
     const url = URL.createObjectURL(blob);
@@ -1084,7 +1043,6 @@
     state.settings.startDate = d;
     state.settings.daysCount = c;
 
-    // if selected day outside new range, snap to start
     const r = getRamadanDates();
     if (!isInRamadan(selectedIso)) selectedIso = r[0];
 
@@ -1107,22 +1065,20 @@
   // Main render
   // --------------------
   const renderAll = () => {
-    // default selected to Ramadan start if within Ramadan; else today if within; else start
     const ram = getRamadanDates();
     if (!isInRamadan(selectedIso)) {
       selectedIso = isInRamadan(isoToday()) ? isoToday() : ram[0];
     }
 
+    renderTabs();
     renderKPIs();
     renderCalendar();
     renderGoals();
-    renderTabs();
     renderTabContent();
     renderCharts();
   };
 
   // init
-  ensureDay(selectedIso);
   renderAll();
 
   // register SW
