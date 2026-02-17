@@ -68,6 +68,48 @@
   </style>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- ✅ Firebase (Professional Sync + Auth) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDZZS4fBXuOReMvC56bj7jo_chOa5VEvCM",
+      authDomain: "ramadantracker-b64bc.firebaseapp.com",
+      projectId: "ramadantracker-b64bc",
+      storageBucket: "ramadantracker-b64bc.firebasestorage.app",
+      messagingSenderId: "583922931412",
+      appId: "1:583922931412:web:414af7f2dee6fe067a4d41",
+      measurementId: "G-1BNT847E9D"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+
+    window.__firebase = {
+      login: async () => (await signInWithPopup(auth, provider)).user,
+      logout: async () => signOut(auth),
+      onUser: (cb) => onAuthStateChanged(auth, cb),
+
+      fetchState: async (uid) => {
+        const snap = await getDoc(doc(db, "users", uid));
+        return snap.exists() ? snap.data() : null;
+      },
+
+      listenState: (uid, cb) => onSnapshot(doc(db, "users", uid), (snap) => {
+        cb(snap.exists() ? snap.data() : null);
+      }),
+
+      saveState: async (uid, data) => {
+        data.updatedAt = Date.now();
+        await setDoc(doc(db, "users", uid), data, { merge: false });
+      }
+    };
+  </script>
 </head>
 
 <body>
@@ -75,13 +117,19 @@
     <header>
       <div>
         <h1>🌙 متتبع رمضان</h1>
-        <div class="sub" id="subtitle">Dashboard + صفحة اليوم + نقاط + شارتس — بياناتك على جهازك فقط.</div>
+        <div class="sub">Live Preview + Save Only + Google Login + Sync بين الأجهزة</div>
       </div>
+
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <span class="pill" id="todayPill">—</span>
+
         <button class="btn ghost" id="exportBtn">تصدير</button>
         <button class="btn ghost" id="importBtn">استيراد</button>
         <button class="btn ghost" id="settingsBtn">إعدادات</button>
+
+        <button class="btn ghost" id="loginBtn">تسجيل الدخول</button>
+        <button class="btn ghost" id="logoutBtn" style="display:none">تسجيل الخروج</button>
+        <span class="pill" id="userPill" style="display:none"></span>
       </div>
     </header>
 
@@ -95,15 +143,15 @@
         <div class="kpis" style="margin-top:10px">
           <div class="kpi">
             <div class="v" id="kpiTotal">—</div>
-            <div class="l">مجموع اليوم / 100</div>
+            <div class="l">مجموع اليوم / 100 (Live)</div>
           </div>
           <div class="kpi">
             <div class="v" id="kpiStreak">—</div>
-            <div class="l">🔥 Streak</div>
+            <div class="l">🔥 Streak (Saved)</div>
           </div>
           <div class="kpi">
             <div class="v" id="kpiAvg7">—</div>
-            <div class="l">متوسط 7 أيام (محفوظة)</div>
+            <div class="l">متوسط 7 أيام (Saved)</div>
           </div>
           <div class="kpi">
             <div class="v" id="kpiLogged">—</div>
@@ -113,7 +161,7 @@
 
         <div style="margin-top:12px">
           <div class="split">
-            <div class="sectionTitle">📈 التقدم اليومي (محفوظ فقط)</div>
+            <div class="sectionTitle">📈 التقدم اليومي (Saved فقط)</div>
             <div class="mini">اضغط يوم من التقويم لعرضه وتعديله</div>
           </div>
           <canvas id="lineChart" height="110"></canvas>
@@ -161,10 +209,11 @@
         </div>
 
         <p class="hint" style="margin-top:10px">
-          ✅ أي تغيير على checkbox/كتابة سيُحدّث السكور والشارتس فورًا (Live). <br>
-          ✅ اليوم لا يصبح “محفوظًا” إلا عند الضغط على <b>حفظ اليوم</b>. <br>
-          ✅ الجمعة: يظهر “Bonus بعد العصر” تلقائيًا ضمن الدعاء. <br>
-          ✅ المهني: كل مهمة ✔ = نقطة (حد أقصى 10).
+          ✅ أي تغيير: Live update فورًا (بدون حفظ).<br>
+          ✅ اليوم لا يصبح محفوظًا إلا عند الضغط على <b>حفظ اليوم</b>.<br>
+          ✅ الجمعة: يظهر “Bonus بعد العصر” تلقائيًا ضمن الدعاء.<br>
+          ✅ المهني: كل مهمة ✔ = نقطة (حد أقصى 10).<br>
+          ✅ ورد القرآن: اكتب عدد الصفحات — كل 4 صفحات = 1 نقطة (حد أقصى 5).
         </p>
 
         <hr style="border:none;border-top:1px solid rgba(29,42,74,.75);margin:14px 0"/>
@@ -191,14 +240,14 @@
           </label>
         </div>
         <p class="mini" style="margin-top:10px">
-          الافتراضي مضبوط على 18 فبراير 2026. لو رمضان اختلف السنة الجاية بس عدّل التاريخ هنا.
+          الافتراضي مضبوط على 18 فبراير 2026. لو رمضان اختلف السنة الجاية عدّل التاريخ هنا.
         </p>
         <div class="actions">
           <button class="btn primary" id="saveSettings">حفظ الإعدادات</button>
           <button class="btn danger" id="resetAll">مسح كل البيانات</button>
         </div>
         <p class="mini dangerText" style="margin-top:10px">
-          مسح البيانات = حذف نهائي من الجهاز.
+          مسح البيانات = حذف نهائي من الجهاز + السحابة (بعد تسجيل الدخول).
         </p>
       </div>
     </div>
@@ -207,13 +256,11 @@
 
 <script>
 (() => {
-  // --------------------
-  // Storage
-  // --------------------
-  const KEY = "ramadan_pwa_v1";
+  const KEY = "ramadan_pwa_v2_pro";
 
   const defaultState = () => ({
-    version: 1,
+    version: 2,
+    updatedAt: 0,
     settings: { startDate: "2026-02-18", daysCount: 30 },
     goals: [],
     days: {} // SAVED ONLY
@@ -229,18 +276,25 @@
         ...s,
         settings: { ...defaultState().settings, ...(s.settings||{}) },
         goals: Array.isArray(s.goals) ? s.goals : [],
-        days: (s.days && typeof s.days === "object") ? s.days : {}
+        days: (s.days && typeof s.days === "object") ? s.days : {},
+        updatedAt: +s.updatedAt || 0
       };
     } catch {
       return defaultState();
     }
   };
 
-  const save = (s) => localStorage.setItem(KEY, JSON.stringify(s));
+  let currentUser = null;
+  let unsubscribeCloud = null;
+  let applyingRemote = false;
 
-  // --------------------
-  // Helpers
-  // --------------------
+  const save = (s) => {
+    localStorage.setItem(KEY, JSON.stringify(s));
+    if (currentUser && window.__firebase && !applyingRemote) {
+      window.__firebase.saveState(currentUser.uid, s).catch(()=>{});
+    }
+  };
+
   const isoToday = () => {
     const d = new Date();
     const yyyy = d.getFullYear();
@@ -263,14 +317,11 @@
     return dt.toLocaleDateString("ar-EG", {weekday:"long", year:"numeric", month:"long", day:"numeric"});
   };
 
-  const dayOfWeek = (iso) => new Date(iso).getDay(); // 0 Sun .. 6 Sat
+  const dayOfWeek = (iso) => new Date(iso).getDay();
   const isFriday = (iso) => dayOfWeek(iso) === 5;
-
   const clamp = (n,a,b) => Math.min(b, Math.max(a, n));
+  const round1 = (x) => Math.round(x*10)/10;
 
-  // --------------------
-  // UI
-  // --------------------
   const $ = (id) => document.getElementById(id);
 
   const ui = {
@@ -305,37 +356,32 @@
     startDateInput: $("startDateInput"),
     daysCountInput: $("daysCountInput"),
     saveSettings: $("saveSettings"),
-    resetAll: $("resetAll")
+    resetAll: $("resetAll"),
+
+    loginBtn: $("loginBtn"),
+    logoutBtn: $("logoutBtn"),
+    userPill: $("userPill"),
   };
 
   let state = load();
   let selectedIso = isoToday();
   let activeTab = "روحاني";
 
-  // --------------------
-  // Scoring (100)
-  // --------------------
-  const WEIGHTS = {
-    روحاني: 45, صحي: 15, شخصي: 10, عائلي: 8, اجتماعي: 7, مهني: 10, مادي: 5
-  };
+  // ✅ روحاني = 45 (28 صلوات + 6 أذكار + 6 دعاء + 5 قرآن)
+  const WEIGHTS = { روحاني: 45, صحي: 15, شخصي: 10, عائلي: 8, اجتماعي: 7, مهني: 10, مادي: 5 };
 
   const PRAYERS = [
     { key:"sun_fajr2", label:"ركعتي الفجر (سنة)", type:"sun", rakah:2 },
     { key:"fard_fajr", label:"الفجر (فرض)", type:"fard", rakah:2 },
     { key:"duha", label:"الضحى (سنة)", type:"sun", rakah:2 },
-
     { key:"sun_before_dhuhr4", label:"٤ قبل الظهر (سنة)", type:"sun", rakah:4 },
     { key:"fard_dhuhr", label:"الظهر (فرض)", type:"fard", rakah:4 },
     { key:"sun_after_dhuhr2", label:"٢ بعد الظهر (سنة)", type:"sun", rakah:2 },
-
     { key:"fard_asr", label:"العصر (فرض)", type:"fard", rakah:4 },
-
     { key:"fard_maghrib", label:"المغرب (فرض)", type:"fard", rakah:3 },
     { key:"sun_after_maghrib2", label:"٢ بعد المغرب (سنة)", type:"sun", rakah:2 },
-
     { key:"fard_isha", label:"العشاء (فرض)", type:"fard", rakah:4 },
     { key:"sun_after_isha2", label:"٢ بعد العشاء (سنة)", type:"sun", rakah:2 },
-
     { key:"taraweeh8", label:"التراويح (٨ ركعات)", type:"sun", rakah:8 },
     { key:"witr", label:"الوتر (٣ ركعات)", type:"fardlike", rakah:3 },
   ];
@@ -343,8 +389,8 @@
   const thikrItems = [
     {key:"thikr_morning", label:"أذكار الصباح", points:2},
     {key:"thikr_evening", label:"أذكار المساء", points:2},
-    {key:"thikr_salat_nabi", label:"ورد الصلاة على النبي", points:1.5},
-    {key:"thikr_hawqala", label:"ورد الحوقلة", points:1.5},
+    {key:"thikr_salat_nabi", label:"ورد الصلاة على النبي", points:1.0},
+    {key:"thikr_hawqala", label:"ورد الحوقلة", points:1.0},
   ];
 
   const duaBase = [
@@ -377,23 +423,17 @@
     {key:"fam_help", label:"مساعدة في البيت", points:3},
   ];
 
-  const socialItems = [
-    {key:"soc_taarafu", label:"لتعارفوا", points:7},
-  ];
+  const socialItems = [{key:"soc_taarafu", label:"لتعارفوا", points:7}];
 
   const moneyItems = [
     {key:"money_sadaqa", label:"الصدقة", points:3},
     {key:"money_earn", label:"الكسب / إنتاج", points:2},
   ];
 
-  const profCategories = [
-    "المذاكرة","KIT Project","English learning","قناة تراث","تطوير مهارة","Other"
-  ];
+  const profCategories = ["المذاكرة","KIT Project","English learning","قناة تراث","تطوير مهارة","Other"];
 
-  // --------------------
-  // Draft system (days are not saved until user clicks save)
-  // --------------------
-  const drafts = {}; // drafts[iso] = dayData
+  // Drafts (not synced; saved only syncs)
+  const drafts = {};
 
   const makeEmptyDay = () => ({
     prayers: Object.fromEntries(PRAYERS.map(p => [p.key, false])),
@@ -401,6 +441,9 @@
     thikr: Object.fromEntries(thikrItems.map(x => [x.key, false])),
     dua: Object.fromEntries([...duaBase, fridayBonus].map(x => [x.key, false])),
     duaFocus: "",
+
+    // ✅ ورد القرآن: عدد صفحات
+    quranPages: 0,
 
     health: Object.fromEntries(healthItems.map(x => [x.key, false])),
     personal: Object.fromEntries(personalItems.map(x => [x.key, false])),
@@ -422,18 +465,18 @@
   const saveDay = (iso) => {
     state.days[iso] = getDay(iso);
     delete drafts[iso];
+    state.updatedAt = Date.now();
     save(state);
   };
 
   const deleteDay = (iso) => {
     if (state.days[iso]) delete state.days[iso];
     if (drafts[iso]) delete drafts[iso];
+    state.updatedAt = Date.now();
     save(state);
   };
 
-  // --------------------
-  // Scoring calc
-  // --------------------
+  // Scoring helpers
   const calcPrayersRaw = (day) => {
     let raw = 0;
     for (const p of PRAYERS) {
@@ -455,6 +498,12 @@
     return items.reduce((acc,x)=> acc + (day.dua[x.key] ? x.points : 0), 0);
   };
 
+  // ✅ ورد القرآن: كل 4 صفحات = 1 نقطة، حد أقصى 5
+  const calcQuran = (day) => {
+    const pages = clamp(+day.quranPages || 0, 0, 200);
+    return clamp(pages / 4, 0, 5);
+  };
+
   const calcSpiritual = (day, iso) => {
     const prayersRaw = calcPrayersRaw(day);
 
@@ -464,15 +513,18 @@
         return acc + p.rakah * mult;
       }, 0) + (10 * 2);
 
-    const prayersNorm = clamp((prayersRaw / baselineMaxRaw) * 30, 0, 30);
-    const thikr = clamp(calcThikr(day), 0, 7);
-    const dua = clamp(calcDua(day, iso), 0, 8);
+    // ✅ روحاني = 45: (28 + 6 + 6 + 5)
+    const prayersNorm = clamp((prayersRaw / baselineMaxRaw) * 28, 0, 28);
+    const thikr = clamp(calcThikr(day), 0, 6);
+    const dua = clamp(calcDua(day, iso), 0, 6);
+    const quran = clamp(calcQuran(day), 0, 5);
 
     return {
-      prayers: Math.round(prayersNorm * 10) / 10,
-      thikr: Math.round(thikr * 10) / 10,
-      dua: Math.round(dua * 10) / 10,
-      total: Math.round((prayersNorm + thikr + dua) * 10) / 10
+      prayers: round1(prayersNorm),
+      thikr: round1(thikr),
+      dua: round1(dua),
+      quran: round1(quran),
+      total: round1(prayersNorm + thikr + dua + quran)
     };
   };
 
@@ -490,14 +542,12 @@
     return clamp(done, 0, 10);
   };
 
-  // calcAll: if source="saved" => saved only, else uses draft if exists
   const calcAll = (iso, source="auto") => {
     const day = (source === "saved") ? (state.days[iso] || null) : getDay(iso);
-
     if (!day) {
       return {
         breakdown: {"روحاني":0,"صحي":0,"شخصي":0,"عائلي":0,"اجتماعي":0,"مهني":0,"مادي":0},
-        spiritualParts: {prayers:0,thikr:0,dua:0,total:0},
+        spiritualParts: {prayers:0,thikr:0,dua:0,quran:0,total:0},
         total: 0
       };
     }
@@ -510,7 +560,7 @@
     const money = clamp(sumCheckItems(day.money, moneyItems), 0, WEIGHTS.مادي);
     const professional = clamp(calcProfessional(day), 0, WEIGHTS.مهني);
 
-    const total = Math.round((spiritual.total + health + personal + family + social + professional + money) * 10) / 10;
+    const total = round1(spiritual.total + health + personal + family + social + professional + money);
 
     return {
       breakdown: {
@@ -527,9 +577,6 @@
     };
   };
 
-  // --------------------
-  // Ramadan dates
-  // --------------------
   const getRamadanDates = () => {
     const start = state.settings.startDate;
     const count = clamp(+state.settings.daysCount || 30, 29, 30);
@@ -541,9 +588,7 @@
     return iso >= dates[0] && iso <= dates[dates.length-1];
   };
 
-  // --------------------
   // Streak (saved only)
-  // --------------------
   const streakThreshold = 70;
   const calcStreak = () => {
     let streak = 0;
@@ -563,12 +608,9 @@
     const last = dates.slice(-n);
     if (!last.length) return null;
     const sum = last.reduce((acc,iso)=> acc + calcAll(iso, "saved").total, 0);
-    return Math.round((sum/last.length)*10)/10;
+    return round1(sum/last.length);
   };
 
-  // --------------------
-  // Tabs
-  // --------------------
   const TAB_KEYS = ["روحاني","صحي","شخصي","عائلي","اجتماعي","مهني","مادي","ملاحظات"];
 
   const renderTabs = () => {
@@ -586,14 +628,11 @@
     }
   };
 
-  // --------------------
   // Charts
-  // --------------------
   let lineChart, donutChart;
 
   const renderCharts = () => {
     const ramadanDates = getRamadanDates();
-
     const labels = ramadanDates.map((iso, idx)=> `ي${idx+1}`);
     const dataSaved = ramadanDates.map(iso => state.days[iso] ? calcAll(iso, "saved").total : null);
 
@@ -619,7 +658,7 @@
       }
     });
 
-    const sc = calcAll(selectedIso); // ✅ live (draft)
+    const sc = calcAll(selectedIso); // live
     const keys = Object.keys(sc.breakdown);
     const vals = keys.map(k => sc.breakdown[k]);
 
@@ -632,14 +671,12 @@
     });
   };
 
-  // --------------------
-  // Calendar
-  // --------------------
+  // Calendar (saved only)
   const renderCalendar = () => {
     ui.calendar.innerHTML = "";
     const ramadanDates = getRamadanDates();
 
-    const colIndex = (dow) => { if (dow === 6) return 0; return dow + 1; }; // Sat=0..Fri=6
+    const colIndex = (dow) => { if (dow === 6) return 0; return dow + 1; };
     const pad = colIndex(dayOfWeek(ramadanDates[0]));
     for (let i=0;i<pad;i++){
       const empty = document.createElement("div");
@@ -661,21 +698,19 @@
 
       cell.innerHTML = `
         <div class="d">اليوم ${idx+1}</div>
-        <div class="mini">${fmtAr(iso).replace(/^.+،\s*/,"")}</div>
+        <div class="mini">${fmtAr(iso).replace(/^.+،\\s*/,"")}</div>
         <div class="s">${score == null ? "—" : (score + "/100")}</div>
       `;
       cell.addEventListener("click", ()=>{
         selectedIso = iso;
-        renderAll(); // switch day
+        renderAll();
       });
 
       ui.calendar.appendChild(cell);
     });
   };
 
-  // --------------------
   // Goals
-  // --------------------
   const renderGoals = () => {
     ui.goalsList.innerHTML = "";
 
@@ -702,6 +737,7 @@
       cb.checked = !!g.done;
       cb.addEventListener("change", ()=>{
         g.done = cb.checked;
+        state.updatedAt = Date.now();
         save(state);
         renderAll();
       });
@@ -717,6 +753,7 @@
       del.textContent = "حذف";
       del.addEventListener("click", ()=>{
         state.goals.splice(i,1);
+        state.updatedAt = Date.now();
         save(state);
         renderAll();
       });
@@ -728,16 +765,13 @@
     });
   };
 
-  // --------------------
   // KPIs
-  // --------------------
   const renderKPIs = () => {
     ui.todayPill.textContent = `اليوم: ${fmtAr(isoToday())}`;
 
     const ramDates = getRamadanDates();
     ui.ramadanLabel.textContent = `رمضان: من ${fmtAr(ramDates[0])} إلى ${fmtAr(ramDates[ramDates.length-1])}`;
 
-    // ✅ KPI Total shows live draft for selected day
     const scLive = calcAll(selectedIso);
     ui.kpiTotal.textContent = `${scLive.total}`;
 
@@ -747,19 +781,15 @@
     ui.kpiLogged.textContent = Object.keys(state.days).length;
   };
 
-  // --------------------
-  // Live refresh (✅ updates charts + KPIs instantly without saving)
-  // --------------------
+  // Live refresh (no save)
   const refreshLive = () => {
     renderKPIs();
     renderTabContent();
     renderCharts();
-    renderCalendar(); // keeps active border; does NOT mark saved
+    renderCalendar();
   };
 
-  // --------------------
-  // UI builders
-  // --------------------
+  // UI helpers
   const mkCheck = (label, checked, onChange) => {
     const line = document.createElement("div");
     line.className = "checkline";
@@ -794,11 +824,11 @@
       q.style.gap = "10px";
       q.style.alignItems = "center";
       q.innerHTML = `<div>قيام الليل (اكتب عدد الركعات)</div>`;
-      const inp = document.createElement("input");
-      inp.type = "number"; inp.min="0"; inp.max="60";
-      inp.value = day.qiyamRakah || 0;
-      inp.addEventListener("input", ()=> { day.qiyamRakah = clamp(+inp.value||0,0,60); refreshLive(); });
-      q.appendChild(inp);
+      const inpQiyam = document.createElement("input");
+      inpQiyam.type = "number"; inpQiyam.min="0"; inpQiyam.max="60";
+      inpQiyam.value = day.qiyamRakah || 0;
+      inpQiyam.addEventListener("input", ()=> { day.qiyamRakah = clamp(+inpQiyam.value||0,0,60); refreshLive(); });
+      q.appendChild(inpQiyam);
       wrap.appendChild(q);
 
       wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"📿 الأذكار"}));
@@ -811,6 +841,33 @@
       for (const x of duaItemsToday) {
         wrap.appendChild(mkCheck(x.label, day.dua[x.key], (v)=>{ day.dua[x.key]=v; }));
       }
+
+      // ✅ ورد القرآن بعد الدعاء
+      wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"📖 ورد القرآن"}));
+
+      const quranBox = document.createElement("div");
+      quranBox.className = "checkline";
+      quranBox.style.display = "grid";
+      quranBox.style.gridTemplateColumns = "1fr 160px";
+      quranBox.style.gap = "10px";
+      quranBox.style.alignItems = "center";
+      quranBox.innerHTML = `<div>عدد الصفحات المقروءة اليوم</div>`;
+
+      const inpPages = document.createElement("input");
+      inpPages.type = "number"; inpPages.min="0"; inpPages.max="200";
+      inpPages.value = day.quranPages || 0;
+      inpPages.addEventListener("input", ()=> {
+        day.quranPages = clamp(+inpPages.value||0,0,200);
+        refreshLive();
+      });
+      quranBox.appendChild(inpPages);
+      wrap.appendChild(quranBox);
+
+      const quranPts = document.createElement("div");
+      quranPts.className = "mini";
+      quranPts.style.marginTop = "6px";
+      quranPts.textContent = `النقاط: ${round1(calcQuran(day))}/5 — (كل 4 صفحات = 1 نقطة)`;
+      wrap.appendChild(quranPts);
 
       const focus = document.createElement("label");
       focus.textContent = "الدعوات اللي هتركز عليها اليوم";
@@ -825,39 +882,32 @@
       const hint = document.createElement("div");
       hint.className = "mini";
       hint.style.marginTop = "8px";
-      hint.textContent = `روحاني اليوم: ${sc.breakdown["روحاني"]}/45 (صلوات ${sc.spiritualParts.prayers}/30 + أذكار ${sc.spiritualParts.thikr}/7 + دعاء ${sc.spiritualParts.dua}/8)`;
+      hint.textContent =
+        `روحاني اليوم: ${sc.breakdown["روحاني"]}/45 (صلوات ${sc.spiritualParts.prayers}/28 + أذكار ${sc.spiritualParts.thikr}/6 + دعاء ${sc.spiritualParts.dua}/6 + قرآن ${sc.spiritualParts.quran}/5)`;
       wrap.appendChild(hint);
     }
 
     if (activeTab === "صحي") {
       wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"💪 الجانب الصحي"}));
-      for (const x of healthItems) {
-        wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.health[x.key], (v)=>{ day.health[x.key]=v; }));
-      }
+      for (const x of healthItems) wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.health[x.key], (v)=>{ day.health[x.key]=v; }));
       wrap.appendChild(Object.assign(document.createElement("div"), {className:"mini", textContent:`حد أقصى: ${WEIGHTS.صحي} نقطة`}));
     }
 
     if (activeTab === "شخصي") {
       wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"🧠 الجانب الشخصي"}));
-      for (const x of personalItems) {
-        wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.personal[x.key], (v)=>{ day.personal[x.key]=v; }));
-      }
+      for (const x of personalItems) wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.personal[x.key], (v)=>{ day.personal[x.key]=v; }));
       wrap.appendChild(Object.assign(document.createElement("div"), {className:"mini", textContent:`حد أقصى: ${WEIGHTS.شخصي} نقطة`}));
     }
 
     if (activeTab === "عائلي") {
       wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"👨‍👩‍👦 الجانب العائلي"}));
-      for (const x of familyItems) {
-        wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.family[x.key], (v)=>{ day.family[x.key]=v; }));
-      }
+      for (const x of familyItems) wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.family[x.key], (v)=>{ day.family[x.key]=v; }));
       wrap.appendChild(Object.assign(document.createElement("div"), {className:"mini", textContent:`حد أقصى: ${WEIGHTS.عائلي} نقطة`}));
     }
 
     if (activeTab === "اجتماعي") {
       wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"🌍 الجانب الاجتماعي"}));
-      for (const x of socialItems) {
-        wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.social[x.key], (v)=>{ day.social[x.key]=v; }));
-      }
+      for (const x of socialItems) wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.social[x.key], (v)=>{ day.social[x.key]=v; }));
       wrap.appendChild(Object.assign(document.createElement("div"), {className:"mini", textContent:`حد أقصى: ${WEIGHTS.اجتماعي} نقطة`}));
     }
 
@@ -932,9 +982,7 @@
 
     if (activeTab === "مادي") {
       wrap.appendChild(Object.assign(document.createElement("div"), {className:"sectionTitle", textContent:"💰 الجانب المادي"}));
-      for (const x of moneyItems) {
-        wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.money[x.key], (v)=>{ day.money[x.key]=v; }));
-      }
+      for (const x of moneyItems) wrap.appendChild(mkCheck(`${x.label} (${x.points})`, day.money[x.key], (v)=>{ day.money[x.key]=v; }));
       wrap.appendChild(Object.assign(document.createElement("div"), {className:"mini", textContent:`حد أقصى: ${WEIGHTS.مادي} نقطة`}));
     }
 
@@ -959,24 +1007,16 @@
     ui.tabContent.appendChild(wrap);
   };
 
-  // --------------------
   // Actions
-  // --------------------
-  ui.saveDayBtn.addEventListener("click", ()=>{
-    saveDay(selectedIso);
-    renderAll();
-  });
-
-  ui.deleteDayBtn.addEventListener("click", ()=>{
-    deleteDay(selectedIso);
-    renderAll();
-  });
+  ui.saveDayBtn.addEventListener("click", ()=>{ saveDay(selectedIso); renderAll(); });
+  ui.deleteDayBtn.addEventListener("click", ()=>{ deleteDay(selectedIso); renderAll(); });
 
   ui.addGoalBtn.addEventListener("click", ()=>{
     const txt = (ui.goalInput.value || "").trim();
     if (!txt) return;
     state.goals.unshift({ text: txt, done:false, createdAt: Date.now() });
     ui.goalInput.value = "";
+    state.updatedAt = Date.now();
     save(state);
     renderAll();
   });
@@ -1010,7 +1050,8 @@
             ...parsed,
             settings: { ...defaultState().settings, ...(parsed.settings||{}) },
             goals: Array.isArray(parsed.goals) ? parsed.goals : [],
-            days: (parsed.days && typeof parsed.days === "object") ? parsed.days : {}
+            days: (parsed.days && typeof parsed.days === "object") ? parsed.days : {},
+            updatedAt: Date.now()
           };
           save(state);
           renderAll();
@@ -1033,9 +1074,7 @@
 
   ui.settingsBtn.addEventListener("click", openSettings);
   ui.closeSettings.addEventListener("click", closeSettings);
-  ui.settingsModal.addEventListener("click", (e)=>{
-    if (e.target === ui.settingsModal) closeSettings();
-  });
+  ui.settingsModal.addEventListener("click", (e)=>{ if (e.target === ui.settingsModal) closeSettings(); });
 
   ui.saveSettings.addEventListener("click", ()=>{
     const d = ui.startDateInput.value || "2026-02-18";
@@ -1046,6 +1085,7 @@
     const r = getRamadanDates();
     if (!isInRamadan(selectedIso)) selectedIso = r[0];
 
+    state.updatedAt = Date.now();
     save(state);
     closeSettings();
     renderAll();
@@ -1055,15 +1095,76 @@
     const ok = confirm("متأكد؟ هتمسح كل البيانات نهائيًا.");
     if (!ok) return;
     state = defaultState();
+    state.updatedAt = Date.now();
     save(state);
     selectedIso = state.settings.startDate;
     closeSettings();
     renderAll();
   });
 
-  // --------------------
+  // Cloud Auth + Sync
+  const startCloud = () => {
+    if (!window.__firebase) return;
+
+    window.__firebase.onUser(async (user) => {
+      currentUser = user || null;
+
+      if (unsubscribeCloud) { try { unsubscribeCloud(); } catch {} unsubscribeCloud = null; }
+
+      if (!currentUser) {
+        ui.loginBtn.style.display = "";
+        ui.logoutBtn.style.display = "none";
+        ui.userPill.style.display = "none";
+        return;
+      }
+
+      ui.loginBtn.style.display = "none";
+      ui.logoutBtn.style.display = "";
+      ui.userPill.style.display = "";
+      ui.userPill.textContent = "👤 " + (currentUser.displayName || "حسابي");
+
+      const remoteOnce = await window.__firebase.fetchState(currentUser.uid).catch(()=>null);
+      const localUpdated = state.updatedAt || 0;
+      const remoteUpdated = remoteOnce?.updatedAt || 0;
+
+      if (!remoteOnce) {
+        state.updatedAt = Date.now();
+        save(state);
+      } else if (remoteUpdated > localUpdated) {
+        applyingRemote = true;
+        state = remoteOnce;
+        localStorage.setItem(KEY, JSON.stringify(state));
+        applyingRemote = false;
+        renderAll();
+      } else if (localUpdated > remoteUpdated) {
+        state.updatedAt = Date.now();
+        save(state);
+      }
+
+      unsubscribeCloud = window.__firebase.listenState(currentUser.uid, (remote) => {
+        if (!remote) return;
+        const lu = state.updatedAt || 0;
+        const ru = remote.updatedAt || 0;
+        if (ru > lu) {
+          applyingRemote = true;
+          state = remote;
+          localStorage.setItem(KEY, JSON.stringify(state));
+          applyingRemote = false;
+          renderAll();
+        }
+      });
+    });
+
+    ui.loginBtn.addEventListener("click", async ()=> {
+      try { await window.__firebase.login(); } catch { alert("فشل تسجيل الدخول."); }
+    });
+    ui.logoutBtn.addEventListener("click", async ()=> {
+      try { await window.__firebase.logout(); } catch { alert("فشل تسجيل الخروج."); }
+    });
+  };
+
   // Main render
-  // --------------------
+  let lineChart, donutChart; // declared in renderCharts scope already, but keep safe
   const renderAll = () => {
     const ram = getRamadanDates();
     if (!isInRamadan(selectedIso)) {
@@ -1078,10 +1179,11 @@
     renderCharts();
   };
 
-  // init
+  // Init
   renderAll();
+  startCloud();
 
-  // register SW
+  // PWA
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./service-worker.js");
   }
