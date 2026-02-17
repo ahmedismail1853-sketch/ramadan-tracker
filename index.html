@@ -2259,29 +2259,23 @@
   });
 
   // Cloud Auth + Sync
-  const startCloud = () => {
-  // ✅ استنى Firebase module يجهز
+const startCloud = () => {
   if (!window.__firebase) {
     setTimeout(startCloud, 200);
     return;
   }
 
-    window.__firebase.onUser(async (user) => {
-      currentUser = user || null;
+  window.__firebase.onUser(async (user) => {
+    ...
+  });
 
-      if (unsubscribeCloud) { try { unsubscribeCloud(); } catch {} unsubscribeCloud = null; }
-
-      if (!currentUser) {
-        ui.loginBtn.style.display = "";
-        ui.logoutBtn.style.display = "none";
-        ui.userPill.style.display = "none";
-        return;
-      }
-
-      ui.loginBtn.style.display = "none";
-      ui.logoutBtn.style.display = "";
-      ui.userPill.style.display = "";
-      ui.userPill.textContent = "👤 " + (currentUser.displayName || "حسابي");
+  ui.loginBtn.addEventListener("click", async ()=> {
+    try { await window.__firebase.login(); } catch (e) { alert("فشل تسجيل الدخول."); }
+  });
+  ui.logoutBtn.addEventListener("click", async ()=> {
+    try { await window.__firebase.logout(); } catch (e) { alert("فشل تسجيل الخروج."); }
+  });
+};
 
       const remoteOnce = await window.__firebase.fetchState(currentUser.uid).catch(()=>null);
       const localUpdated = state.updatedAt || 0;
@@ -2351,5 +2345,6 @@
 </script>
 </body>
 </html>
+
 
 
