@@ -2260,7 +2260,11 @@
 
   // Cloud Auth + Sync
   const startCloud = () => {
-    if (!window.__firebase) return;
+  // ✅ استنى Firebase module يجهز
+  if (!window.__firebase) {
+    setTimeout(startCloud, 200);
+    return;
+  }
 
     window.__firebase.onUser(async (user) => {
       currentUser = user || null;
@@ -2347,4 +2351,5 @@
 </script>
 </body>
 </html>
+
 
